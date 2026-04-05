@@ -1,0 +1,28 @@
+version: 1
+splits:
+  train:
+    output: train.jsonl
+    total_documents: 100000
+    seed: 0
+    min_chars: 32
+    datasets:
+      - path: roneneldan/TinyStories
+        split: train
+        text_key: text
+        ratio: 1.0
+        streaming: true
+        shuffle: true
+        shuffle_buffer: 10000
+  validation:
+    output: val.jsonl
+    total_documents: 2000
+    seed: 1
+    min_chars: 32
+    datasets:
+      - path: roneneldan/TinyStories
+        split: validation
+        text_key: text
+        ratio: 1.0
+        streaming: true
+        shuffle: true
+        shuffle_buffer: 2000
