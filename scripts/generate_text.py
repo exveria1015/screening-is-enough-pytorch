@@ -2,19 +2,13 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-import sys
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from abcdigits import build_gpt2_tokenizer  # noqa: E402
-from multiscreen.config import MultiscreenConfig  # noqa: E402
-from multiscreen.generation import generate_tokens, truncate_prompt_tokens  # noqa: E402
-from multiscreen.model import MultiscreenLM  # noqa: E402
+from abcdigits import build_gpt2_tokenizer
+from multiscreen.config import MultiscreenConfig
+from multiscreen.generation import generate_tokens, truncate_prompt_tokens
+from multiscreen.model import MultiscreenLM
 
 
 def resolve_device(requested: str) -> torch.device:

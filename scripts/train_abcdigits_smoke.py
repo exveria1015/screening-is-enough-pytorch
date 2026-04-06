@@ -1,26 +1,19 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-import sys
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from abcdigits import (  # noqa: E402
+from abcdigits import (
     ABCDigitsConfig,
     build_abcdigits_causal_lm_batch,
     build_gpt2_tokenizer,
     evaluate_abcdigits_exact_match,
     sample_tokenized_abcdigits_examples,
 )
-from multiscreen.config import MultiscreenConfig  # noqa: E402
-from multiscreen.model import MultiscreenLM  # noqa: E402
-from multiscreen.train import OptimizerConfig, build_optimizer, evaluate_loss, train_step  # noqa: E402
+from multiscreen.config import MultiscreenConfig
+from multiscreen.model import MultiscreenLM
+from multiscreen.train import OptimizerConfig, build_optimizer, evaluate_loss, train_step
 
 
 def main() -> int:

@@ -3,22 +3,16 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from pathlib import Path
-import sys
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from abcdigits import (  # noqa: E402
+from abcdigits import (
     build_abcdigits_eval_suite,
     build_gpt2_tokenizer,
     evaluate_abcdigits_exact_match,
 )
-from multiscreen.config import MultiscreenConfig  # noqa: E402
-from multiscreen.model import MultiscreenLM  # noqa: E402
+from multiscreen.config import MultiscreenConfig
+from multiscreen.model import MultiscreenLM
 
 
 def parse_float_csv(value: str) -> tuple[float, ...]:

@@ -4,18 +4,12 @@ import argparse
 from dataclasses import asdict
 import json
 from pathlib import Path
-import sys
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from abcdigits import build_gpt2_tokenizer  # noqa: E402
-from multiscreen.config import MultiscreenConfig  # noqa: E402
-from multiscreen.corpus import (  # noqa: E402
+from abcdigits import build_gpt2_tokenizer
+from multiscreen.config import MultiscreenConfig
+from multiscreen.corpus import (
     TokenizedCorpusArtifact,
     build_fixed_causal_lm_batches,
     build_token_stream_from_corpus,
@@ -23,10 +17,10 @@ from multiscreen.corpus import (  # noqa: E402
     load_tokenized_corpus_artifact,
     split_token_stream,
 )
-from multiscreen.data import causal_lm_batch_from_token_block, sample_token_blocks  # noqa: E402
-from multiscreen.model import MultiscreenLM  # noqa: E402
-from multiscreen.sizing import multiscreen_parameter_count  # noqa: E402
-from multiscreen.train import (  # noqa: E402
+from multiscreen.data import causal_lm_batch_from_token_block, sample_token_blocks
+from multiscreen.model import MultiscreenLM
+from multiscreen.sizing import multiscreen_parameter_count
+from multiscreen.train import (
     OptimizerConfig,
     build_optimizer,
     evaluate_loss,

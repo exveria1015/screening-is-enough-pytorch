@@ -77,6 +77,8 @@ python -m pip install -e .[dev]
 pytest
 ```
 
+The scripts in `scripts/` assume the package is installed in the active environment, for example via the editable install above.
+
 ## Quick Start
 
 ### 1. ABCDigits Smoke Test

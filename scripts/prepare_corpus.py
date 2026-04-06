@@ -3,17 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import sys
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from abcdigits import build_gpt2_tokenizer  # noqa: E402
-from multiscreen.corpus import (  # noqa: E402
+from abcdigits import build_gpt2_tokenizer
+from multiscreen.corpus import (
     TokenizedCorpusArtifact,
     TokenizedCorpusMetadata,
     expand_corpus_paths,
@@ -24,7 +18,7 @@ from multiscreen.corpus import (  # noqa: E402
     tokenize_corpus_documents,
     write_token_stream_from_corpus,
 )
-from multiscreen.sizing import estimate_multiscreen_size_from_token_count  # noqa: E402
+from multiscreen.sizing import estimate_multiscreen_size_from_token_count
 
 
 def resolve_storage_dtype(name: str) -> torch.dtype:

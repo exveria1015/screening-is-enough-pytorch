@@ -4,16 +4,10 @@ import argparse
 from dataclasses import asdict
 import json
 from pathlib import Path
-import sys
 
 import torch
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-from abcdigits import (  # noqa: E402
+from abcdigits import (
     ABCDigitsCurriculumConfig,
     build_abcdigits_eval_suite,
     build_abcdigits_training_pool,
@@ -23,9 +17,9 @@ from abcdigits import (  # noqa: E402
     sample_abcdigits_training_batch,
     sample_abcdigits_training_batch_from_pool,
 )
-from multiscreen.config import MultiscreenConfig  # noqa: E402
-from multiscreen.model import MultiscreenLM  # noqa: E402
-from multiscreen.train import (  # noqa: E402
+from multiscreen.config import MultiscreenConfig
+from multiscreen.model import MultiscreenLM
+from multiscreen.train import (
     OptimizerConfig,
     build_optimizer,
     set_optimizer_eval_mode,
