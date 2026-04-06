@@ -6,6 +6,7 @@ Unofficial PyTorch implementation of the Multiscreen architecture described in t
 > This repository is **not** the official implementation.
 > It is an independent reimplementation and is **not affiliated with or endorsed by the paper author**.
 > If this codebase differs from the paper, the paper is the authoritative reference.
+> This codebase prioritizes correctness, readability, and architectural inspection over kernel-level optimization, and is not intended as a paper-scale long-context runtime implementation.
 
 ## Reference Paper
 
@@ -144,3 +145,7 @@ python scripts/train_corpus.py \
 - This repository is intended for reproduction, experimentation, and inspection of the Multiscreen architecture in PyTorch.
 - It should not be cited or interpreted as the canonical implementation of the paper.
 - If an official implementation is released separately, that implementation should be preferred for canonical comparisons.
+
+## License
+
+This repository is intended to be licensed under the Apache License 2.0. See `LICENSE`.

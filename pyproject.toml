@@ -5,8 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "screening-is-enough-pytorch"
 version = "0.1.0"
-description = "Paper-faithful PyTorch implementation of Screening Is Enough (Multiscreen)."
+description = "Unofficial PyTorch reimplementation for studying the Multiscreen architecture from Screening Is Enough."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.12,<3.14"
 dependencies = [
   "datasets>=2.20",
