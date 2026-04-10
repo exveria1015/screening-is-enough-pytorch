@@ -75,7 +75,7 @@ def generate_tokens(
     model.eval()
     for _ in range(max_new_tokens):
         input_ids = generated.unsqueeze(0)
-        logits, _ = model(input_ids, inference=True)
+        logits, _ = model(input_ids, inference=True, return_relevances=False)
         next_token = sample_next_token(
             logits[:, -1, :],
             temperature=temperature,

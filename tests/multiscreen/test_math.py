@@ -4,7 +4,16 @@ import math
 
 import torch
 
-from multiscreen.math import TanhNorm, apply_mipe, build_softmask, normalize_unit, trim_and_square, window_from_parameter
+from multiscreen.math import (
+    TanhNorm,
+    apply_mipe,
+    build_mipe_rotation,
+    build_softmask,
+    normalize_and_apply_mipe,
+    normalize_unit,
+    trim_and_square,
+    window_from_parameter,
+)
 
 
 def test_trim_and_square_matches_paper_threshold() -> None:
@@ -51,6 +60,19 @@ def test_mipe_leaves_dimensions_after_the_first_two_unchanged() -> None:
     window = torch.tensor(2.0, dtype=torch.float32)
     actual = apply_mipe(x, positions, window, mipe_threshold=4.0)
     assert torch.allclose(actual[..., 2:], x[..., 2:], atol=1e-6)
+
+
+def test_normalize_and_apply_mipe_matches_explicit_composition() -> None:
+    torch.manual_seed(0)
+    x = torch.randn(2, 3, 5, 4, dtype=torch.float32)
+    positions = torch.arange(5, dtype=torch.long)
+    window = torch.tensor([2.0, 4.0, 256.0], dtype=torch.float32)
+    rotation = build_mipe_rotation(positions, window, mipe_threshold=256.0, dtype=x.dtype, device=x.device)
+
+    expected = apply_mipe(normalize_unit(x), positions, window, mipe_threshold=256.0)
+    actual = normalize_and_apply_mipe(x, positions, window, mipe_threshold=256.0, rotation=rotation)
+
+    assert torch.allclose(actual, expected, atol=1e-6, rtol=1e-6)
 
 
 def test_window_parameter_matches_equation() -> None:

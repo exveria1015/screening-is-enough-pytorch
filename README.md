@@ -6,7 +6,8 @@ Unofficial PyTorch implementation of the Multiscreen architecture described in t
 > This repository is **not** the official implementation.
 > It is an independent reimplementation and is **not affiliated with or endorsed by the paper author**.
 > If this codebase differs from the paper, the paper is the authoritative reference.
-> This codebase prioritizes correctness, readability, and architectural inspection over kernel-level optimization, and is not intended as a paper-scale long-context runtime implementation.
+> The reference track in this repository prioritizes correctness, readability, and architectural inspection over kernel-level optimization.
+> Kernel and runtime experiments are isolated on dedicated branches so the paper-faithful path remains easy to inspect.
 
 ## Reference Paper
 
@@ -23,6 +24,13 @@ The repository name is `screening-is-enough-pytorch`. The Python packages remain
 - `multiscreen`
 - `abcdigits`
 
+## Branch Policy
+
+- `main`: paper-faithful PyTorch reference branch for inspecting the Multiscreen equations and model structure.
+- `test-triton-kernel`: experimental branch split from the reference implementation for Triton/CUDA kernel work, backend profiling, and fusion experiments.
+
+The goal of the experimental branch is to stay equation-equivalent to the paper while changing execution strategy. In practice that means preserving the same mathematical form, while allowing numerically close but not bitwise-identical floating-point results when reduction order changes on GPU.
+
 ## Current Status
 
 Implemented in this repository today:
@@ -30,6 +38,8 @@ Implemented in this repository today:
 - Multiscreen configuration and parameter sizing utilities
 - Screening Unit math, MiPE, softmask, and TanhNorm helpers
 - Multiscreen language model layers with gated screening tiles
+- Experimental opt-in Triton screening backend for exact-form aggregation without relevance materialization
+- Equation-equivalent Triton kernel experiments for preprocessing, screening aggregation, and fused screening epilogues
 - ABCDigits synthetic benchmark generation, tokenization, and evaluation
 - Corpus building from YAML specifications via Hugging Face datasets
 - One-time corpus tokenization and reusable token artifact generation
@@ -54,6 +64,8 @@ This repository follows the paper as a reference for the Multiscreen architectur
 - Continual pretraining protocol differs. The paper continues long-context training from pretrained checkpoints while inheriting optimizer state and applying no additional warmup. This repository does not currently provide the full paper-style continual pretraining workflow as a dedicated reproduction pipeline.
 - Evaluation differs. The paper reports long-context perplexity on PG-19, ABCDigits retrieval across much larger context lengths, multi-seed averages, Transformer comparisons, RoPE scaling sweeps for the baseline, and 100K-context latency measurements. Those evaluations are not fully reproduced in this repository.
 - ABCDigits training and evaluation differ in scale. The paper evaluates `2^12` to `2^17` context lengths with `1,000` examples per cell and reports multi-model averages, while the local ABCDigits scripts default to much smaller ranges intended for manageable experimentation and debugging.
+- The optional Triton backend is an optimization path only. It preserves the same equations as the reference implementation, but floating-point reductions may differ slightly from the baseline PyTorch path, so the default execution path remains the reference PyTorch implementation.
+- The `test-triton-kernel` branch is intentionally for runtime experiments. Treat `main` as the easiest branch to audit against the paper, and treat the Triton branch as the place where execution strategy is allowed to evolve without changing the target equations.
 
 Because of these differences, results from this repository should be treated as exploratory or partial reproduction results, not as direct reproductions of the paper's reported numbers.
 

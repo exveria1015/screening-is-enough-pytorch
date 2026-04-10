@@ -1,97 +1,81 @@
 """Paper-faithful Multiscreen implementation."""
 
-from multiscreen.config import MultiscreenConfig
-from multiscreen.corpus_build import (
-    CorpusBuildReport,
-    CorpusBuildSpec,
-    CorpusBuildSplit,
-    CorpusDatasetSource,
-    CorpusSourceBuildReport,
-    CorpusSplitBuildReport,
-    allocate_source_document_counts,
-    build_corpus_from_spec,
-    iterate_source_texts,
-    load_corpus_build_spec,
-    normalize_corpus_text,
-)
-from multiscreen.corpus import (
-    CorpusSplit,
-    TokenizedCorpusArtifact,
-    TokenizedCorpusMetadata,
-    build_fixed_causal_lm_batches,
-    build_token_stream_from_corpus,
-    expand_corpus_paths,
-    iter_corpus_documents,
-    load_corpus_documents,
-    load_tokenized_corpus_artifact,
-    save_tokenized_corpus_artifact,
-    split_token_stream,
-    tokenize_corpus_documents,
-    write_token_stream_from_corpus,
-)
-from multiscreen.data import CausalLMBatch, causal_lm_batch_from_token_block, sample_token_blocks
-from multiscreen.generation import generate_tokens, sample_next_token, truncate_prompt_tokens
-from multiscreen.math import TanhNorm, apply_mipe, build_softmask, normalize_unit, trim_and_square
-from multiscreen.model import GatedScreeningTile, MultiscreenLM, ScreeningUnit
-from multiscreen.sizing import (
-    MultiscreenSizeEstimate,
-    estimate_multiscreen_size_from_token_count,
-    multiscreen_parameter_count,
-    multiscreen_parameter_count_from_dimensions,
-    multiscreen_parameter_count_from_psi,
-)
-from multiscreen.train import OptimizerConfig, TrainStepResult, build_optimizer, causal_lm_loss, evaluate_loss, model_device, train_step
+from __future__ import annotations
 
-__all__ = [
-    "CausalLMBatch",
-    "CorpusBuildReport",
-    "CorpusBuildSpec",
-    "CorpusBuildSplit",
-    "CorpusDatasetSource",
-    "CorpusSplit",
-    "CorpusSourceBuildReport",
-    "CorpusSplitBuildReport",
-    "GatedScreeningTile",
-    "MultiscreenConfig",
-    "MultiscreenLM",
-    "MultiscreenSizeEstimate",
-    "OptimizerConfig",
-    "ScreeningUnit",
-    "TanhNorm",
-    "TokenizedCorpusArtifact",
-    "TokenizedCorpusMetadata",
-    "TrainStepResult",
-    "allocate_source_document_counts",
-    "apply_mipe",
-    "build_fixed_causal_lm_batches",
-    "build_optimizer",
-    "build_softmask",
-    "build_corpus_from_spec",
-    "build_token_stream_from_corpus",
-    "causal_lm_batch_from_token_block",
-    "causal_lm_loss",
-    "estimate_multiscreen_size_from_token_count",
-    "evaluate_loss",
-    "expand_corpus_paths",
-    "generate_tokens",
-    "iter_corpus_documents",
-    "iterate_source_texts",
-    "load_corpus_documents",
-    "load_corpus_build_spec",
-    "load_tokenized_corpus_artifact",
-    "model_device",
-    "multiscreen_parameter_count",
-    "multiscreen_parameter_count_from_dimensions",
-    "multiscreen_parameter_count_from_psi",
-    "normalize_corpus_text",
-    "normalize_unit",
-    "sample_next_token",
-    "save_tokenized_corpus_artifact",
-    "sample_token_blocks",
-    "split_token_stream",
-    "tokenize_corpus_documents",
-    "train_step",
-    "truncate_prompt_tokens",
-    "trim_and_square",
-    "write_token_stream_from_corpus",
-]
+from importlib import import_module
+
+
+_EXPORTS_BY_MODULE = {
+    "multiscreen.config": ("MultiscreenConfig",),
+    "multiscreen.corpus_build": (
+        "CorpusBuildReport",
+        "CorpusBuildSpec",
+        "CorpusBuildSplit",
+        "CorpusDatasetSource",
+        "CorpusSourceBuildReport",
+        "CorpusSplitBuildReport",
+        "allocate_source_document_counts",
+        "build_corpus_from_spec",
+        "iterate_source_texts",
+        "load_corpus_build_spec",
+        "normalize_corpus_text",
+    ),
+    "multiscreen.corpus": (
+        "CorpusSplit",
+        "TokenizedCorpusArtifact",
+        "TokenizedCorpusMetadata",
+        "build_fixed_causal_lm_batches",
+        "build_token_stream_from_corpus",
+        "expand_corpus_paths",
+        "iter_corpus_documents",
+        "load_corpus_documents",
+        "load_tokenized_corpus_artifact",
+        "save_tokenized_corpus_artifact",
+        "split_token_stream",
+        "tokenize_corpus_documents",
+        "write_token_stream_from_corpus",
+    ),
+    "multiscreen.data": ("CausalLMBatch", "causal_lm_batch_from_token_block", "sample_token_blocks"),
+    "multiscreen.generation": ("generate_tokens", "sample_next_token", "truncate_prompt_tokens"),
+    "multiscreen.math": ("TanhNorm", "apply_mipe", "build_softmask", "normalize_unit", "trim_and_square"),
+    "multiscreen.model": ("GatedScreeningTile", "MultiscreenLM", "ScreeningUnit"),
+    "multiscreen.sizing": (
+        "MultiscreenSizeEstimate",
+        "estimate_multiscreen_size_from_token_count",
+        "multiscreen_parameter_count",
+        "multiscreen_parameter_count_from_dimensions",
+        "multiscreen_parameter_count_from_psi",
+    ),
+    "multiscreen.train": (
+        "OptimizerConfig",
+        "TrainStepResult",
+        "build_optimizer",
+        "causal_lm_loss",
+        "evaluate_loss",
+        "model_device",
+        "train_step",
+    ),
+    "multiscreen.triton_kernels": ("TritonScreeningSupport", "check_triton_screening_support", "triton_is_available"),
+}
+
+_SYMBOL_TO_MODULE = {
+    symbol: module_name
+    for module_name, symbols in _EXPORTS_BY_MODULE.items()
+    for symbol in symbols
+}
+
+__all__ = sorted(_SYMBOL_TO_MODULE)
+
+
+def __getattr__(name: str):
+    module_name = _SYMBOL_TO_MODULE.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module(module_name)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(list(globals().keys()) + __all__)

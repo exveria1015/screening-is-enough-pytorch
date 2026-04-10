@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 
 import torch
 from transformers import PreTrainedTokenizerBase
@@ -16,6 +17,25 @@ from abcdigits.tokenization import (
 from multiscreen.data import CausalLMBatch
 from multiscreen.model import MultiscreenLM
 from multiscreen.train import model_device
+
+
+def _supports_return_relevances_kwarg(model: torch.nn.Module) -> bool:
+    try:
+        signature = inspect.signature(model.forward)
+    except (TypeError, ValueError):
+        return False
+    return "return_relevances" in signature.parameters
+
+
+def _forward_model_for_logits(
+    model: torch.nn.Module,
+    input_ids: torch.Tensor,
+    *,
+    inference: bool,
+) -> tuple[torch.Tensor, object]:
+    if _supports_return_relevances_kwarg(model):
+        return model(input_ids, inference=inference, return_relevances=False)
+    return model(input_ids, inference=inference)
 
 
 @dataclass(slots=True)
@@ -101,7 +121,7 @@ def greedy_decode_completion(
     for _ in range(max_new_tokens):
         if generated.shape[1] > model.config.max_seq_len:
             raise ValueError("prompt plus generated tokens exceed model.config.max_seq_len")
-        logits, _ = model(generated, inference=True)
+        logits, _ = _forward_model_for_logits(model, generated, inference=True)
         next_token = int(torch.argmax(logits[0, -1]).item())
         predicted.append(next_token)
         next_token_tensor = torch.tensor([[next_token]], dtype=torch.long, device=device)
@@ -135,7 +155,7 @@ def greedy_decode_completion_text(
     for _ in range(limit):
         if generated.shape[1] > model.config.max_seq_len:
             raise ValueError("prompt plus generated tokens exceed model.config.max_seq_len")
-        logits, _ = model(generated, inference=True)
+        logits, _ = _forward_model_for_logits(model, generated, inference=True)
         next_token = int(torch.argmax(logits[0, -1]).item())
         predicted.append(next_token)
         decoded = tokenizer.decode(predicted, clean_up_tokenization_spaces=False)

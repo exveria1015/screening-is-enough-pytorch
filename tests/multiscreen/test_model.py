@@ -33,7 +33,7 @@ def test_multiscreen_forward_shapes() -> None:
     )
     model = MultiscreenLM(config)
     input_ids = torch.randint(0, config.vocab_size, (3, 5), dtype=torch.long)
-    logits, relevances = model(input_ids)
+    logits, relevances = model(input_ids, return_relevances=True)
     assert logits.shape == (3, 5, config.vocab_size)
     assert len(relevances) == config.n_layers
     assert len(relevances[0]) == config.n_heads
@@ -52,6 +52,85 @@ def test_multiscreen_layer_contains_only_parallel_tiles_and_no_block_ffn() -> No
     assert not hasattr(layer, "ffn")
 
 
+def test_multiscreen_layer_matches_explicit_tile_execution() -> None:
+    torch.manual_seed(0)
+    config = MultiscreenConfig(
+        d_model=16,
+        n_layers=2,
+        n_heads=3,
+        d_key=4,
+        d_value=8,
+        max_seq_len=8,
+        max_train_seq_len=4,
+    )
+    layer = MultiscreenLayer(config)
+    x = torch.randn(2, 5, config.d_model, dtype=torch.float32)
+
+    expected_updates: list[torch.Tensor] = []
+    expected_relevances: list[torch.Tensor] = []
+    for tile in layer.tiles:
+        update, relevance = tile(x, inference=True)
+        expected_updates.append(update)
+        expected_relevances.append(relevance)
+    expected_hidden = x + torch.stack(expected_updates, dim=0).sum(dim=0)
+
+    actual_hidden, actual_relevances = layer(x, inference=True, return_relevances=True)
+
+    assert torch.allclose(actual_hidden, expected_hidden, atol=1e-6, rtol=1e-6)
+    assert len(actual_relevances) == len(expected_relevances)
+    for actual, expected in zip(actual_relevances, expected_relevances, strict=True):
+        assert torch.allclose(actual, expected, atol=1e-6, rtol=1e-6)
+
+
+def test_multiscreen_layer_packed_qkvg_projection_matches_explicit_tiles() -> None:
+    torch.manual_seed(0)
+    config = MultiscreenConfig(
+        d_model=16,
+        n_layers=2,
+        n_heads=3,
+        d_key=4,
+        d_value=8,
+        max_seq_len=8,
+        max_train_seq_len=4,
+    )
+    layer = MultiscreenLayer(config)
+    x = torch.randn(2, 5, config.d_model, dtype=torch.float32)
+
+    expected_q = torch.stack([tile.q_proj(x) for tile in layer.tiles], dim=1)
+    expected_k = torch.stack([tile.k_proj(x) for tile in layer.tiles], dim=1)
+    expected_v = torch.stack([tile.v_proj(x) for tile in layer.tiles], dim=1)
+    expected_g = torch.stack([tile.g_proj(x) for tile in layer.tiles], dim=1)
+
+    actual_q, actual_k, actual_v, actual_g = layer._project_qkvg(x)
+
+    assert torch.allclose(actual_q, expected_q, atol=1e-6, rtol=1e-6)
+    assert torch.allclose(actual_k, expected_k, atol=1e-6, rtol=1e-6)
+    assert torch.allclose(actual_v, expected_v, atol=1e-6, rtol=1e-6)
+    assert torch.allclose(actual_g, expected_g, atol=1e-6, rtol=1e-6)
+
+
+def test_multiscreen_layer_can_skip_relevance_materialization_without_changing_output() -> None:
+    torch.manual_seed(0)
+    config = MultiscreenConfig(
+        d_model=16,
+        n_layers=2,
+        n_heads=3,
+        d_key=4,
+        d_value=8,
+        max_seq_len=8,
+        max_train_seq_len=4,
+    )
+    layer = MultiscreenLayer(config)
+    x = torch.randn(2, 5, config.d_model, dtype=torch.float32)
+
+    expected_hidden, expected_relevances = layer(x, inference=True, return_relevances=True)
+    actual_hidden, actual_relevances = layer(x, inference=True, return_relevances=False, query_chunk_size=2)
+
+    assert actual_relevances is None
+    assert expected_relevances is not None
+    assert torch.allclose(actual_hidden, expected_hidden, atol=1e-6, rtol=1e-6)
+
+
 def test_multiscreen_backward_produces_finite_gradients() -> None:
     torch.manual_seed(0)
     config = MultiscreenConfig(
@@ -67,7 +146,7 @@ def test_multiscreen_backward_produces_finite_gradients() -> None:
     model = MultiscreenLM(config)
     input_ids = torch.randint(0, config.vocab_size, (2, 5), dtype=torch.long)
     labels = torch.randint(0, config.vocab_size, (2, 5), dtype=torch.long)
-    logits, _ = model(input_ids)
+    logits, _ = model(input_ids, return_relevances=False)
     loss = F.cross_entropy(logits.reshape(-1, config.vocab_size), labels.reshape(-1))
     loss.backward()
 
@@ -157,6 +236,22 @@ def test_screening_unit_normalizes_values_before_aggregation() -> None:
     out_small, _ = unit(q, k, v_small)
     out_large, _ = unit(q, k, v_large)
     assert torch.allclose(out_small, out_large, atol=1e-6)
+
+
+def test_screening_unit_chunked_path_matches_dense_path_exactly() -> None:
+    torch.manual_seed(0)
+    config = MultiscreenConfig(d_model=8, n_layers=1, n_heads=1, d_key=4, d_value=4, max_seq_len=8, max_train_seq_len=8)
+    unit = ScreeningUnit(config, initial_s_w=0.0)
+    q = torch.randn(2, 5, 4, dtype=torch.float32)
+    k = torch.randn(2, 5, 4, dtype=torch.float32)
+    v = torch.randn(2, 5, 4, dtype=torch.float32)
+
+    dense_output, dense_relevance = unit(q, k, v, return_relevance=True)
+    chunked_output, chunked_relevance = unit(q, k, v, return_relevance=False, query_chunk_size=2)
+
+    assert dense_relevance is not None
+    assert chunked_relevance is None
+    assert torch.allclose(chunked_output, dense_output, atol=1e-6, rtol=1e-6)
 
 
 def test_screening_relevance_is_not_constrained_to_sum_to_one() -> None:
@@ -278,6 +373,50 @@ def test_input_and_output_share_same_normalized_embedding_matrix() -> None:
 
     assert torch.allclose(model.embed(input_ids), expected_embed, atol=1e-6)
     assert torch.allclose(model.logits(hidden), expected_logits, atol=1e-6)
+
+
+def test_model_logits_match_with_and_without_returning_relevances() -> None:
+    torch.manual_seed(0)
+    config = MultiscreenConfig(vocab_size=32, d_model=16, n_layers=2, n_heads=2, d_key=4, d_value=8, max_seq_len=8)
+    model = MultiscreenLM(config)
+    input_ids = torch.randint(0, config.vocab_size, (2, 5), dtype=torch.long)
+
+    logits_with_relevance, relevances = model(input_ids, return_relevances=True)
+    logits_without_relevance, skipped = model(input_ids, return_relevances=False, query_chunk_size=2)
+
+    assert relevances is not None
+    assert skipped is None
+    assert torch.allclose(logits_with_relevance, logits_without_relevance, atol=1e-6, rtol=1e-6)
+
+
+def test_model_auto_backend_falls_back_to_torch_on_cpu() -> None:
+    torch.manual_seed(0)
+    config = MultiscreenConfig(vocab_size=32, d_model=16, n_layers=2, n_heads=2, d_key=4, d_value=8, max_seq_len=8)
+    model = MultiscreenLM(config)
+    input_ids = torch.randint(0, config.vocab_size, (2, 5), dtype=torch.long)
+
+    logits_torch, _ = model(input_ids, return_relevances=False, screening_backend="torch")
+    logits_auto, _ = model(input_ids, return_relevances=False, screening_backend="auto")
+
+    assert torch.allclose(logits_auto, logits_torch, atol=1e-6, rtol=1e-6)
+
+
+def test_model_rejects_unknown_screening_backend() -> None:
+    config = MultiscreenConfig(vocab_size=32, d_model=16, n_layers=1, n_heads=1, d_key=4, d_value=8, max_seq_len=8)
+    model = MultiscreenLM(config)
+    input_ids = torch.randint(0, config.vocab_size, (1, 5), dtype=torch.long)
+
+    with pytest.raises(ValueError, match="screening_backend"):
+        model(input_ids, screening_backend="bogus")
+
+
+def test_model_explicit_triton_backend_raises_when_unavailable() -> None:
+    config = MultiscreenConfig(vocab_size=32, d_model=16, n_layers=1, n_heads=1, d_key=4, d_value=8, max_seq_len=8)
+    model = MultiscreenLM(config)
+    input_ids = torch.randint(0, config.vocab_size, (1, 5), dtype=torch.long)
+
+    with pytest.raises(RuntimeError, match="Triton screening backend is unavailable"):
+        model(input_ids, return_relevances=False, screening_backend="triton")
 
 
 def test_forward_rejects_sequences_longer_than_config() -> None:

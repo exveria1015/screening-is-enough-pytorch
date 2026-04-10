@@ -132,7 +132,7 @@ def train_step(
     device = model_device(model)
     input_ids = batch.input_ids.to(device)
     labels = batch.labels.to(device)
-    logits, _ = model(input_ids)
+    logits, _ = model(input_ids, return_relevances=False)
     loss = causal_lm_loss(logits, labels)
     loss.backward()
     if grad_clip is not None:
@@ -157,5 +157,5 @@ def evaluate_loss(
     device = model_device(model)
     input_ids = batch.input_ids.to(device)
     labels = batch.labels.to(device)
-    logits, _ = model(input_ids)
+    logits, _ = model(input_ids, return_relevances=False)
     return float(causal_lm_loss(logits, labels).detach())
