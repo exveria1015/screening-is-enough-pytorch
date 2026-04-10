@@ -15,6 +15,7 @@ from abcdigits.tokenization import (
     tokenize_abcdigits_example,
 )
 from multiscreen.data import CausalLMBatch
+from multiscreen.generation import truncate_prompt_tokens
 from multiscreen.model import MultiscreenLM
 from multiscreen.train import model_device
 
@@ -115,17 +116,20 @@ def greedy_decode_completion(
         raise ValueError("prompt_ids must be non-empty")
 
     device = model_device(model)
-    generated = torch.tensor([list(prompt_ids)], dtype=torch.long, device=device)
+    generated = truncate_prompt_tokens(
+        torch.tensor(list(prompt_ids), dtype=torch.long, device=device),
+        max_seq_len=model.config.max_seq_len,
+    ).unsqueeze(0)
     predicted: list[int] = []
     model.eval()
     for _ in range(max_new_tokens):
-        if generated.shape[1] > model.config.max_seq_len:
-            raise ValueError("prompt plus generated tokens exceed model.config.max_seq_len")
         logits, _ = _forward_model_for_logits(model, generated, inference=True)
         next_token = int(torch.argmax(logits[0, -1]).item())
         predicted.append(next_token)
         next_token_tensor = torch.tensor([[next_token]], dtype=torch.long, device=device)
         generated = torch.cat((generated, next_token_tensor), dim=1)
+        if generated.shape[1] > model.config.max_seq_len:
+            generated = generated[:, -model.config.max_seq_len :]
     return tuple(predicted)
 
 
@@ -144,7 +148,10 @@ def greedy_decode_completion_text(
         raise ValueError("target_text must be non-empty")
 
     device = model_device(model)
-    generated = torch.tensor([list(prompt_ids)], dtype=torch.long, device=device)
+    generated = truncate_prompt_tokens(
+        torch.tensor(list(prompt_ids), dtype=torch.long, device=device),
+        max_seq_len=model.config.max_seq_len,
+    ).unsqueeze(0)
     predicted: list[int] = []
     decoded = ""
     limit = max_new_tokens if max_new_tokens is not None else len(target_text)
@@ -153,14 +160,14 @@ def greedy_decode_completion_text(
 
     model.eval()
     for _ in range(limit):
-        if generated.shape[1] > model.config.max_seq_len:
-            raise ValueError("prompt plus generated tokens exceed model.config.max_seq_len")
         logits, _ = _forward_model_for_logits(model, generated, inference=True)
         next_token = int(torch.argmax(logits[0, -1]).item())
         predicted.append(next_token)
         decoded = tokenizer.decode(predicted, clean_up_tokenization_spaces=False)
         next_token_tensor = torch.tensor([[next_token]], dtype=torch.long, device=device)
         generated = torch.cat((generated, next_token_tensor), dim=1)
+        if generated.shape[1] > model.config.max_seq_len:
+            generated = generated[:, -model.config.max_seq_len :]
         if len(decoded) >= len(target_text):
             break
     return decoded

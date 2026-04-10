@@ -183,3 +183,113 @@ def test_tokenized_corpus_artifact_roundtrips_tokens_and_metadata(tmp_path) -> N
     assert loaded.metadata.tokenizer_name == "gpt2"
     assert loaded.metadata.size_estimate is not None
     assert loaded.metadata.size_estimate.recommended_psi == estimate.recommended_psi
+
+
+def test_save_tokenized_corpus_artifact_removes_stale_validation_stream(tmp_path) -> None:
+    output_dir = tmp_path / "prepared"
+    with_val = TokenizedCorpusArtifact(
+        metadata=TokenizedCorpusMetadata(
+            format_version=1,
+            tokenizer_name="gpt2",
+            vocab_size=128,
+            append_eos=True,
+            jsonl_text_key="text",
+            train_files=("train.txt",),
+            val_files=("val.txt",),
+            train_documents=1,
+            val_documents=1,
+            train_tokens=3,
+            val_tokens=2,
+            total_tokens=5,
+            storage_dtype="int32",
+            size_estimate=None,
+        ),
+        train_token_ids=torch.tensor([1, 2, 3], dtype=torch.long),
+        val_token_ids=torch.tensor([4, 5], dtype=torch.long),
+    )
+    save_tokenized_corpus_artifact(output_dir, artifact=with_val, storage_dtype=torch.int32)
+    assert (output_dir / "val_tokens.bin").exists()
+
+    without_val = TokenizedCorpusArtifact(
+        metadata=TokenizedCorpusMetadata(
+            format_version=1,
+            tokenizer_name="gpt2",
+            vocab_size=128,
+            append_eos=True,
+            jsonl_text_key="text",
+            train_files=("train.txt",),
+            val_files=(),
+            train_documents=1,
+            val_documents=0,
+            train_tokens=3,
+            val_tokens=0,
+            total_tokens=3,
+            storage_dtype="int32",
+            size_estimate=None,
+        ),
+        train_token_ids=torch.tensor([1, 2, 3], dtype=torch.long),
+        val_token_ids=None,
+    )
+    save_tokenized_corpus_artifact(output_dir, artifact=without_val, storage_dtype=torch.int32)
+
+    assert not (output_dir / "val_tokens.bin").exists()
+    loaded = load_tokenized_corpus_artifact(output_dir)
+    assert loaded.val_token_ids is None
+
+
+def test_load_tokenized_corpus_artifact_ignores_stale_zero_length_validation_metadata(tmp_path) -> None:
+    artifact_dir = tmp_path / "prepared"
+    artifact_dir.mkdir()
+    np.asarray([1, 2, 3], dtype=np.int32).tofile(artifact_dir / "train_tokens.bin")
+    np.asarray([4, 5], dtype=np.int32).tofile(artifact_dir / "val_tokens.bin")
+    metadata = TokenizedCorpusMetadata(
+        format_version=1,
+        tokenizer_name="gpt2",
+        vocab_size=128,
+        append_eos=True,
+        jsonl_text_key="text",
+        train_files=("train.txt",),
+        val_files=(),
+        train_documents=1,
+        val_documents=0,
+        train_tokens=3,
+        val_tokens=0,
+        total_tokens=3,
+        storage_dtype="int32",
+        size_estimate=None,
+    )
+    (artifact_dir / "metadata.json").write_text(json.dumps(metadata.to_dict(), sort_keys=True, indent=2), encoding="utf-8")
+
+    loaded = load_tokenized_corpus_artifact(artifact_dir)
+    assert torch.equal(loaded.train_token_ids, torch.tensor([1, 2, 3], dtype=torch.int32))
+    assert loaded.val_token_ids is None
+
+
+def test_load_tokenized_corpus_artifact_supports_read_only_binary_files(tmp_path) -> None:
+    artifact = TokenizedCorpusArtifact(
+        metadata=TokenizedCorpusMetadata(
+            format_version=1,
+            tokenizer_name="gpt2",
+            vocab_size=128,
+            append_eos=True,
+            jsonl_text_key="text",
+            train_files=("train.txt",),
+            val_files=("val.txt",),
+            train_documents=1,
+            val_documents=1,
+            train_tokens=3,
+            val_tokens=2,
+            total_tokens=5,
+            storage_dtype="int32",
+            size_estimate=None,
+        ),
+        train_token_ids=torch.tensor([1, 2, 3], dtype=torch.long),
+        val_token_ids=torch.tensor([4, 5], dtype=torch.long),
+    )
+    save_tokenized_corpus_artifact(tmp_path / "prepared", artifact=artifact, storage_dtype=torch.int32)
+    for path in (tmp_path / "prepared").iterdir():
+        path.chmod(0o444)
+
+    loaded = load_tokenized_corpus_artifact(tmp_path / "prepared")
+    assert torch.equal(loaded.train_token_ids, torch.tensor([1, 2, 3], dtype=torch.int32))
+    assert torch.equal(loaded.val_token_ids, torch.tensor([4, 5], dtype=torch.int32))

@@ -25,6 +25,7 @@ from multiscreen.train import (
     build_optimizer,
     evaluate_loss,
     set_optimizer_eval_mode,
+    should_log_step,
     train_step,
 )
 
@@ -192,6 +193,12 @@ def main() -> int:
         raise ValueError("batch_size must be positive")
     if args.steps <= 0:
         raise ValueError("steps must be positive")
+    if args.log_interval < 0:
+        raise ValueError("log_interval must be non-negative")
+    if args.eval_interval < 0:
+        raise ValueError("eval_interval must be non-negative")
+    if args.save_every < 0:
+        raise ValueError("save_every must be non-negative")
     if args.prepared_corpus is None and not args.train_path:
         raise ValueError("either --prepared-corpus or --train-path must be provided")
     if args.prepared_corpus is not None and args.train_path:
@@ -271,7 +278,7 @@ def main() -> int:
             "grad_norm": result.grad_norm,
         }
         append_jsonl(metrics_path, train_payload)
-        if step == 1 or step % args.log_interval == 0 or step == args.steps:
+        if should_log_step(step, total_steps=args.steps, log_interval=args.log_interval):
             print(f"step {step}: loss={result.loss:.6f} grad_norm={result.grad_norm:.6f}")
 
         should_eval = fixed_eval_batches is not None and args.eval_interval > 0 and (

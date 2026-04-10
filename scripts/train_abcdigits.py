@@ -23,6 +23,7 @@ from multiscreen.train import (
     OptimizerConfig,
     build_optimizer,
     set_optimizer_eval_mode,
+    should_log_step,
     train_step,
 )
 
@@ -133,6 +134,17 @@ def main() -> int:
     parser.add_argument("--local-files-only", action="store_true")
     parser.set_defaults(train_add_eos=False)
     args = parser.parse_args()
+
+    if args.batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    if args.steps <= 0:
+        raise ValueError("steps must be positive")
+    if args.log_interval < 0:
+        raise ValueError("log_interval must be non-negative")
+    if args.eval_interval < 0:
+        raise ValueError("eval_interval must be non-negative")
+    if args.save_every < 0:
+        raise ValueError("save_every must be non-negative")
 
     torch.manual_seed(args.seed)
     train_generator = torch.Generator().manual_seed(args.seed + 1)
@@ -251,7 +263,7 @@ def main() -> int:
             "train_pool_size": args.train_pool_size,
         }
         append_jsonl(metrics_path, train_payload)
-        if step == 1 or step % args.log_interval == 0 or step == args.steps:
+        if should_log_step(step, total_steps=args.steps, log_interval=args.log_interval):
             print(
                 f"step {step}: loss={result.loss:.6f} grad_norm={result.grad_norm:.6f} "
                 f"num_equations={num_equations_summary} depth={depth_summary}"
