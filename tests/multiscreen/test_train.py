@@ -12,6 +12,7 @@ from multiscreen.train import (
     evaluate_loss,
     set_optimizer_eval_mode,
     set_optimizer_train_mode,
+    should_log_step,
     train_step,
 )
 
@@ -162,3 +163,18 @@ def test_repeated_train_steps_reduce_loss_on_simple_pattern() -> None:
         train_step(model, optimizer, batch, grad_clip=1.0)
     final_loss = evaluate_loss(model, batch)
     assert final_loss < initial_loss
+
+
+def test_should_log_step_allows_zero_interval_without_modulo_errors() -> None:
+    assert should_log_step(1, total_steps=5, log_interval=0) is True
+    assert should_log_step(3, total_steps=5, log_interval=0) is False
+    assert should_log_step(5, total_steps=5, log_interval=0) is True
+
+
+def test_should_log_step_rejects_negative_interval() -> None:
+    try:
+        should_log_step(1, total_steps=5, log_interval=-1)
+    except ValueError as exc:
+        assert "log_interval" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected ValueError for negative log_interval")

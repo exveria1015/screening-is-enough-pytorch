@@ -117,6 +117,20 @@ def compute_grad_norm(parameters: Iterable[torch.nn.Parameter]) -> float:
     return float(torch.linalg.vector_norm(stacked))
 
 
+def should_log_step(step: int, *, total_steps: int, log_interval: int) -> bool:
+    """Return whether a training loop should emit a progress log on this step."""
+
+    if step <= 0:
+        raise ValueError("step must be positive")
+    if total_steps <= 0:
+        raise ValueError("total_steps must be positive")
+    if log_interval < 0:
+        raise ValueError("log_interval must be non-negative")
+    if step > total_steps:
+        raise ValueError("step must not exceed total_steps")
+    return step == 1 or step == total_steps or (log_interval > 0 and step % log_interval == 0)
+
+
 def train_step(
     model: MultiscreenLM,
     optimizer: torch.optim.Optimizer,

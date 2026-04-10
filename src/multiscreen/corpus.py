@@ -372,11 +372,14 @@ def save_tokenized_corpus_artifact(
     np.asarray(train_token_ids.numpy(), dtype=numpy_dtype).tofile(output_path / _ARTIFACT_TRAIN_TOKENS_BINARY_FILENAME)
 
     val_token_ids = artifact.val_token_ids
-    if val_token_ids is not None:
+    if val_token_ids is not None and val_token_ids.numel() > 0:
         val_to_save = val_token_ids.detach().cpu().to(dtype=storage_dtype)
         if val_to_save.ndim != 1:
             raise ValueError("artifact.val_token_ids must have shape [tokens]")
         np.asarray(val_to_save.numpy(), dtype=numpy_dtype).tofile(output_path / _ARTIFACT_VAL_TOKENS_BINARY_FILENAME)
+    else:
+        (output_path / _ARTIFACT_VAL_TOKENS_BINARY_FILENAME).unlink(missing_ok=True)
+        (output_path / _ARTIFACT_VAL_TOKENS_FILENAME).unlink(missing_ok=True)
 
     metadata = TokenizedCorpusMetadata(
         format_version=artifact.metadata.format_version,
@@ -411,7 +414,7 @@ def load_tokenized_corpus_artifact(path: str | Path) -> TokenizedCorpusArtifact:
     train_binary_path = artifact_path / _ARTIFACT_TRAIN_TOKENS_BINARY_FILENAME
     if train_binary_path.exists():
         numpy_dtype = _resolve_numpy_dtype(metadata.storage_dtype)
-        train_array = np.memmap(train_binary_path, dtype=numpy_dtype, mode="r+", shape=(metadata.train_tokens,))
+        train_array = np.memmap(train_binary_path, dtype=numpy_dtype, mode="c", shape=(metadata.train_tokens,))
         train_token_ids = torch.from_numpy(train_array)
     else:
         train_token_ids = torch.load(artifact_path / _ARTIFACT_TRAIN_TOKENS_FILENAME, weights_only=False).to(dtype=torch.long)
@@ -420,13 +423,13 @@ def load_tokenized_corpus_artifact(path: str | Path) -> TokenizedCorpusArtifact:
 
     val_path = artifact_path / _ARTIFACT_VAL_TOKENS_BINARY_FILENAME
     val_token_ids = None
-    if val_path.exists():
+    if metadata.val_tokens > 0 and val_path.exists():
         numpy_dtype = _resolve_numpy_dtype(metadata.storage_dtype)
-        val_array = np.memmap(val_path, dtype=numpy_dtype, mode="r+", shape=(metadata.val_tokens,))
+        val_array = np.memmap(val_path, dtype=numpy_dtype, mode="c", shape=(metadata.val_tokens,))
         val_token_ids = torch.from_numpy(val_array)
         if val_token_ids.ndim != 1:
             raise ValueError("saved val_token_ids must have shape [tokens]")
-    else:
+    elif metadata.val_tokens > 0:
         legacy_val_path = artifact_path / _ARTIFACT_VAL_TOKENS_FILENAME
         if legacy_val_path.exists():
             val_token_ids = torch.load(legacy_val_path, weights_only=False).to(dtype=torch.long)

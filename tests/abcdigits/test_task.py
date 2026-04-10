@@ -59,6 +59,25 @@ def test_greedy_decode_completion_follows_model_predictions() -> None:
     assert predicted == (7, 8)
 
 
+def test_greedy_decode_completion_slides_context_when_prompt_hits_max_seq_len() -> None:
+    class ContextAwareMockModel(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.config = type("Config", (), {"max_seq_len": 3})()
+            self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        def forward(self, input_ids: torch.Tensor, *, inference: bool = False):  # type: ignore[override]
+            logits = torch.full((1, input_ids.shape[1], 32), fill_value=-1e9, dtype=torch.float32, device=input_ids.device)
+            last_token = int(input_ids[0, -1].item())
+            next_token = 7 if last_token == 12 else 8
+            logits[:, -1, next_token] = 1e9
+            return logits, []
+
+    model = ContextAwareMockModel()
+    predicted = greedy_decode_completion(model, (10, 11, 12), max_new_tokens=2)
+    assert predicted == (7, 8)
+
+
 def test_evaluate_abcdigits_exact_match_counts_matches_correctly() -> None:
     tokenizer = build_gpt2_tokenizer()
     tokenized_examples = sample_tokenized_abcdigits_examples(
