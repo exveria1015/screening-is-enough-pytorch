@@ -26,6 +26,13 @@ except ImportError:  # pragma: no cover - optional dependency
 _SUPPORTED_DTYPES: Final = {torch.float32}
 _MAX_D_KEY: Final = 64
 _MAX_D_VALUE: Final = 128
+_MIN_TRITON_DOT_K: Final = 16
+
+
+def _next_power_of_2(value: int) -> int:
+    if value <= 1:
+        return 1
+    return 1 << (value - 1).bit_length()
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +86,11 @@ def check_triton_screening_support(
     v_support = _check_triton_tensor_support(v_unit, name="v_unit", max_dim=_MAX_D_VALUE)
     if not v_support.supported:
         return v_support
+    if _next_power_of_2(q_mipe.shape[-1]) < _MIN_TRITON_DOT_K:
+        return TritonScreeningSupport(
+            False,
+            f"screening key/query dim={q_mipe.shape[-1]} is unsupported; Triton requires d_key >= 9",
+        )
     if q_mipe.shape != k_mipe.shape:
         return TritonScreeningSupport(False, "q_mipe and k_mipe must have identical shapes")
     if q_mipe.shape[:-1] != v_unit.shape[:-1]:

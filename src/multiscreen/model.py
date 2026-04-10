@@ -92,7 +92,13 @@ def _select_screening_backend(
     return_relevance: bool,
 ) -> str:
     backend = _normalize_screening_backend(screening_backend)
-    if return_relevance or q.ndim != 4:
+    if q.ndim != 4:
+        if backend == "triton":
+            raise RuntimeError("Triton screening backend is unavailable: only head-packed 4D tensors are supported")
+        return "torch"
+    if return_relevance:
+        if backend == "triton":
+            raise RuntimeError("Triton screening backend is unavailable: return_relevance=True is not supported")
         return "torch"
     support = check_triton_screening_support(q, k, v)
     if backend == "triton":

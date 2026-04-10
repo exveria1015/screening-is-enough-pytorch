@@ -419,6 +419,15 @@ def test_model_explicit_triton_backend_raises_when_unavailable() -> None:
         model(input_ids, return_relevances=False, screening_backend="triton")
 
 
+def test_model_explicit_triton_backend_rejects_relevance_materialization() -> None:
+    config = MultiscreenConfig(vocab_size=32, d_model=16, n_layers=1, n_heads=1, d_key=4, d_value=8, max_seq_len=8)
+    model = MultiscreenLM(config)
+    input_ids = torch.randint(0, config.vocab_size, (1, 5), dtype=torch.long)
+
+    with pytest.raises(RuntimeError, match="return_relevance=True"):
+        model(input_ids, return_relevances=True, screening_backend="triton")
+
+
 def test_forward_rejects_sequences_longer_than_config() -> None:
     config = MultiscreenConfig(vocab_size=32, d_model=16, n_layers=1, n_heads=1, d_key=4, d_value=8, max_seq_len=4)
     model = MultiscreenLM(config)

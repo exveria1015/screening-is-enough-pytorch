@@ -93,6 +93,26 @@ def test_triton_fused_backend_matches_torch_logits_for_full_causal_inference() -
     _assert_logits_close(model, input_ids, inference=True, triton_fuse_preprocessing=True)
 
 
+def test_triton_backend_rejects_unsupported_small_d_key_on_cuda() -> None:
+    device = _cuda_device()
+    config = MultiscreenConfig(
+        vocab_size=256,
+        d_model=16,
+        n_layers=1,
+        n_heads=1,
+        d_key=4,
+        d_value=8,
+        max_seq_len=32,
+        max_train_seq_len=32,
+    )
+    model = MultiscreenLM(config).to(device)
+    model.eval()
+    input_ids = torch.randint(0, config.vocab_size, (1, 8), device=device)
+
+    with pytest.raises(RuntimeError, match="d_key >= 9"):
+        model(input_ids, return_relevances=False, screening_backend="triton")
+
+
 def test_triton_preprocess_matches_torch_preprocess_on_cuda() -> None:
     device = _cuda_device()
     torch.manual_seed(0)
